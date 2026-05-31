@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="RemoteLink Pro - Access and control any device remotely from anywhere in the world. Secure peer-to-peer screen sharing and remote control.">
+    <title>RemoteLink Pro — Remote Device Access</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- ═══ Animated Background ═══ -->
+    <div class="bg-animation" id="bgAnimation">
+        <div class="grid-overlay"></div>
+    </div>
+
+    <!-- ═══ Navigation Bar ═══ -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-brand">
+            <div class="brand-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                    <line x1="8" y1="21" x2="16" y2="21"/>
+                    <line x1="12" y1="17" x2="12" y2="21"/>
+                </svg>
+            </div>
+            <span class="brand-name">RemoteLink <span class="brand-accent">Pro</span></span>
+        </div>
+        <div class="nav-status">
+            <div class="status-dot" id="navStatusDot"></div>
+            <span class="status-text" id="navStatusText">Initializing...</span>
+        </div>
+    </nav>
+
+    <!-- ═══ Main Application ═══ -->
+    <main class="app-container">
+
+        <!-- ─── Hero Section ─── -->
+        <section class="hero-section" id="heroSection">
+            <div class="hero-content">
+                <div class="hero-badge">
+                    <span class="badge-pulse"></span>
+                    <span>Secure P2P Connection</span>
+                </div>
+                <h1 class="hero-title">
+                    Access Any Device<br>
+                    <span class="gradient-text">From Anywhere</span>
+                </h1>
+                <p class="hero-subtitle">
+                    Control, navigate, and manage any device remotely using your phone or computer. 
+                    Whether you're in Jinja helping someone in Gulu — RemoteLink Pro bridges the distance.
+                </p>
+                <div class="hero-actions">
+                    <button class="btn btn-primary btn-glow" id="btnShareDevice" onclick="showPanel('host')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                            <rect x="2" y="3" width="20" height="14" rx="2"/>
+                            <path d="M12 17v4M8 21h8"/>
+                        </svg>
+                        Share My Device
+                    </button>
+                    <button class="btn btn-secondary" id="btnAccessDevice" onclick="showPanel('client')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+                            <polyline points="10 17 15 12 10 7"/>
+                            <line x1="15" y1="12" x2="3" y2="12"/>
+                        </svg>
+                        Access a Device
+                    </button>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="device-mockup" id="deviceMockup">
+                    <div class="device-screen">
+                        <div class="screen-header">
+                            <div class="screen-dots">
+                                <span></span><span></span><span></span>
+                            </div>
+                        </div>
+                        <div class="screen-content">
+                            <div class="mock-line w-70"></div>
+                            <div class="mock-line w-50"></div>
+                            <div class="mock-line w-85"></div>
+                            <div class="mock-block"></div>
+                            <div class="mock-line w-60"></div>
+                            <div class="mock-line w-40"></div>
+                        </div>
+                    </div>
+                    <div class="connection-beam">
+                        <div class="beam-particle"></div>
+                        <div class="beam-particle delay-1"></div>
+                        <div class="beam-particle delay-2"></div>
+                    </div>
+                    <div class="device-phone">
+                        <div class="phone-screen">
+                            <div class="phone-notch"></div>
+                            <div class="mock-line w-60"></div>
+                            <div class="mock-line w-40"></div>
+                            <div class="mock-block small"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── Host Panel (Share My Device) ─── -->
+        <section class="panel" id="hostPanel" style="display:none;">
+            <div class="panel-header">
+                <button class="btn-back" onclick="showPanel('hero')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+                    </svg>
+                    Back
+                </button>
+                <h2 class="panel-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="28" height="28">
+                        <rect x="2" y="3" width="20" height="14" rx="2"/>
+                        <path d="M12 17v4M8 21h8"/>
+                    </svg>
+                    Share Your Device
+                </h2>
+            </div>
+
+            <div class="host-setup" id="hostSetup">
+                <div class="setup-card glass-card">
+                    <div class="card-icon-wrapper">
+                        <div class="card-icon pulse-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32">
+                                <rect x="2" y="3" width="20" height="14" rx="2"/>
+                                <path d="M12 17v4M8 21h8"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <h3>Name Your Device</h3>
+                    <p>Give your device a recognizable name so the remote user can identify it.</p>
+                    <div class="input-group">
+                        <input type="text" id="hostDeviceName" placeholder="e.g. John's Laptop" maxlength="30" class="input-field">
+                        <span class="input-hint">This name will be visible to whoever connects</span>
+                    </div>
+                    <button class="btn btn-primary btn-full" id="btnStartHosting" onclick="startHosting()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                            <polyline points="22 4 12 14.01 9 11.01"/>
+                        </svg>
+                        Start Sharing
+                    </button>
+                </div>
+            </div>
+
+            <!-- Host Active State -->
+            <div class="host-active" id="hostActive" style="display:none;">
+                <div class="access-code-card glass-card">
+                    <div class="code-header">
+                        <div class="live-indicator">
+                            <span class="live-dot"></span>
+                            <span>LIVE — Waiting for connection</span>
+                        </div>
+                    </div>
+                    <h3>Your Access Code</h3>
+                    <p>Share this code with the person who needs to access your device</p>
+                    <div class="code-display" id="accessCodeDisplay">
+                        <span class="code-digit">-</span>
+                        <span class="code-digit">-</span>
+                        <span class="code-digit">-</span>
+                        <span class="code-digit">-</span>
+                        <span class="code-digit">-</span>
+                        <span class="code-digit">-</span>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" onclick="copyAccessCode()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                        </svg>
+                        Copy Code
+                    </button>
+                    <div class="code-instructions">
+                        <div class="instruction-step">
+                            <div class="step-number">1</div>
+                            <span>Share this 6-digit code via call, SMS, or WhatsApp</span>
+                        </div>
+                        <div class="instruction-step">
+                            <div class="step-number">2</div>
+                            <span>The remote person enters the code on their device</span>
+                        </div>
+                        <div class="instruction-step">
+                            <div class="step-number">3</div>
+                            <span>Accept the connection when prompted</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Incoming Connection Request -->
+            <div class="incoming-request glass-card" id="incomingRequest" style="display:none;">
+                <div class="request-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="48" height="48">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="8.5" cy="7" r="4"/>
+                        <line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/>
+                    </svg>
+                </div>
+                <h3 id="requestTitle">Connection Request</h3>
+                <p id="requestMessage">Someone wants to access your device</p>
+                <div class="request-actions">
+                    <button class="btn btn-success" id="btnAcceptConn" onclick="acceptConnection()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        Accept
+                    </button>
+                    <button class="btn btn-danger" id="btnRejectConn" onclick="rejectConnection()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                        Reject
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── Client Panel (Access a Device) ─── -->
+        <section class="panel" id="clientPanel" style="display:none;">
+            <div class="panel-header">
+                <button class="btn-back" onclick="showPanel('hero')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+                    </svg>
+                    Back
+                </button>
+                <h2 class="panel-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="28" height="28">
+                        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+                        <polyline points="10 17 15 12 10 7"/>
+                        <line x1="15" y1="12" x2="3" y2="12"/>
+                    </svg>
+                    Access Remote Device
+                </h2>
+            </div>
+
+            <div class="client-connect" id="clientConnect">
+                <div class="connect-card glass-card">
+                    <div class="card-icon-wrapper">
+                        <div class="card-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32">
+                                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+                                <polyline points="10 17 15 12 10 7"/>
+                                <line x1="15" y1="12" x2="3" y2="12"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <h3>Enter Access Code</h3>
+                    <p>Enter the 6-digit code shared by the device owner</p>
+                    <div class="code-input-group" id="codeInputGroup">
+                        <input type="text" maxlength="1" class="code-input" data-index="0" inputmode="numeric" pattern="[0-9]">
+                        <input type="text" maxlength="1" class="code-input" data-index="1" inputmode="numeric" pattern="[0-9]">
+                        <input type="text" maxlength="1" class="code-input" data-index="2" inputmode="numeric" pattern="[0-9]">
+                        <span class="code-separator">—</span>
+                        <input type="text" maxlength="1" class="code-input" data-index="3" inputmode="numeric" pattern="[0-9]">
+                        <input type="text" maxlength="1" class="code-input" data-index="4" inputmode="numeric" pattern="[0-9]">
+                        <input type="text" maxlength="1" class="code-input" data-index="5" inputmode="numeric" pattern="[0-9]">
+                    </div>
+                    <div class="input-group" style="margin-top: 1rem;">
+                        <input type="text" id="clientDeviceName" placeholder="Your name (e.g. Peter)" maxlength="30" class="input-field">
+                    </div>
+                    <button class="btn btn-primary btn-full" id="btnConnect" onclick="connectToDevice()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+                            <polyline points="10 17 15 12 10 7"/>
+                            <line x1="15" y1="12" x2="3" y2="12"/>
+                        </svg>
+                        Connect
+                    </button>
+                </div>
+            </div>
+
+            <!-- Connection Status -->
+            <div class="connection-status glass-card" id="connectionStatus" style="display:none;">
+                <div class="connecting-animation">
+                    <div class="connect-ring"></div>
+                    <div class="connect-ring delay-1"></div>
+                    <div class="connect-ring delay-2"></div>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32" class="connect-icon">
+                        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+                        <polyline points="10 17 15 12 10 7"/>
+                        <line x1="15" y1="12" x2="3" y2="12"/>
+                    </svg>
+                </div>
+                <h3 id="connStatusTitle">Connecting...</h3>
+                <p id="connStatusMessage">Establishing secure connection to the remote device</p>
+            </div>
+        </section>
+
+        <!-- ─── Remote Session Panel ─── -->
+        <section class="panel session-panel" id="sessionPanel" style="display:none;">
+            <!-- Session Toolbar -->
+            <div class="session-toolbar" id="sessionToolbar">
+                <div class="toolbar-left">
+                    <div class="session-indicator">
+                        <span class="live-dot"></span>
+                        <span class="session-label" id="sessionLabel">Remote Session</span>
+                    </div>
+                </div>
+                <div class="toolbar-center">
+                    <button class="toolbar-btn" id="btnToggleControl" onclick="toggleRemoteControl()" title="Toggle Remote Control">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                            <path d="M12 2a10 10 0 0 1 10 10c0 5.52-4.48 10-10 10S2 17.52 2 12"/>
+                            <path d="M12 6v6l4 2"/>
+                        </svg>
+                        <span>Control</span>
+                    </button>
+                    <button class="toolbar-btn" id="btnFullscreen" onclick="toggleFullscreen()" title="Fullscreen">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                            <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
+                            <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+                        </svg>
+                        <span>Fullscreen</span>
+                    </button>
+                    <button class="toolbar-btn" id="btnChat" onclick="toggleChat()" title="Chat">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        </svg>
+                        <span>Chat</span>
+                    </button>
+                    <button class="toolbar-btn" id="btnFileTransfer" onclick="toggleFileTransfer()" title="File Transfer">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        <span>Files</span>
+                    </button>
+                </div>
+                <div class="toolbar-right">
+                    <button class="btn btn-danger btn-sm" id="btnEndSession" onclick="endSession()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
+                            <line x1="12" y1="2" x2="12" y2="12"/>
+                        </svg>
+                        End Session
+                    </button>
+                </div>
+            </div>
+
+            <!-- Remote Screen View -->
+            <div class="remote-screen-container" id="remoteScreenContainer">
+                <video id="remoteVideo" autoplay playsinline></video>
+                <div class="screen-overlay" id="screenOverlay">
+                    <div class="overlay-content">
+                        <div class="loading-spinner"></div>
+                        <p>Waiting for screen share...</p>
+                    </div>
+                </div>
+                <!-- Remote Cursor Overlay -->
+                <canvas id="cursorCanvas" class="cursor-canvas"></canvas>
+            </div>
+
+            <!-- Chat Sidebar -->
+            <div class="chat-sidebar" id="chatSidebar">
+                <div class="chat-header">
+                    <h4>Session Chat</h4>
+                    <button class="btn-close" onclick="toggleChat()">×</button>
+                </div>
+                <div class="chat-messages" id="chatMessages"></div>
+                <div class="chat-input-area">
+                    <input type="text" id="chatInput" placeholder="Type a message..." class="input-field" onkeydown="if(event.key==='Enter') sendChatMessage()">
+                    <button class="btn btn-primary btn-icon" onclick="sendChatMessage()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- File Transfer Sidebar -->
+            <div class="file-sidebar" id="fileSidebar">
+                <div class="chat-header">
+                    <h4>File Transfer</h4>
+                    <button class="btn-close" onclick="toggleFileTransfer()">×</button>
+                </div>
+                <div class="file-drop-zone" id="fileDropZone">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="48" height="48">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    <p>Drag & drop files here<br>or click to browse</p>
+                    <input type="file" id="fileInput" multiple style="display:none" onchange="handleFileSelect(event)">
+                </div>
+                <div class="file-list" id="fileList"></div>
+            </div>
+        </section>
+
+        <!-- ─── Features Section ─── -->
+        <section class="features-section" id="featuresSection">
+            <h2 class="section-title">How It Works</h2>
+            <div class="features-grid">
+                <div class="feature-card glass-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        </svg>
+                    </div>
+                    <h3>End-to-End Encrypted</h3>
+                    <p>All connections use WebRTC with DTLS encryption. Your data never passes through our servers.</p>
+                </div>
+                <div class="feature-card glass-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="2" y1="12" x2="22" y2="12"/>
+                            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                        </svg>
+                    </div>
+                    <h3>Works Anywhere</h3>
+                    <p>Connect from Jinja to Gulu, Kampala to Mbarara — any distance, any network, any device.</p>
+                </div>
+                <div class="feature-card glass-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                        </svg>
+                    </div>
+                    <h3>Real-Time Control</h3>
+                    <p>See the remote screen live and control it as if you were sitting right in front of it.</p>
+                </div>
+                <div class="feature-card glass-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        </svg>
+                    </div>
+                    <h3>Built-in Chat</h3>
+                    <p>Communicate with the person on the other end through the integrated chat system.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ═══ Toast Notifications ═══ -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- ═══ Scripts ═══ -->
+    <script src="app.js"></script>
+</body>
+</html>
