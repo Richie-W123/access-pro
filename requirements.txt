@@ -1,2 +1,2 @@
-aiohttp==3.10.0
-psutil==5.9.8
+aiohttp
+psutil
