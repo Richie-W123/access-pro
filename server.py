@@ -16,6 +16,9 @@ active_sessions = {}
 device_registry = {}
 ws_connections = {}
 
+def get_default_status():
+    return {"cpu": 0, "ram": 0, "battery": 100, "platform": "Remote Device"}
+
 def generate_access_code():
     return str(uuid.uuid4().int)[:6].zfill(6)
 
@@ -36,7 +39,7 @@ async def websocket_handler(request):
                 if mtype == "register":
                     code = generate_access_code()
                     name = data.get("device_name", "Device")
-                    device_registry[code] = {"ws": ws, "device_name": name}
+                    device_registry[code] = {"ws": ws, "device_name": name, "status": get_default_status()}
                     ws_connections[ws] = {"code": code}
                     await ws.send_json({"type": "registered", "access_code": code, "device_name": name})
 
@@ -65,7 +68,6 @@ async def websocket_handler(request):
                         await target.send_json(data)
             except: pass
 
-    # Cleanup
     if ws in ws_connections:
         code = ws_connections[ws].get("code")
         if code in device_registry: del device_registry[code]
@@ -81,11 +83,12 @@ app.add_routes([
     web.get('/', handle_index),
     web.get('/ws', websocket_handler),
     web.get('/api/status', lambda r: web.json_response({"status": "online"})),
-    web.get('/api/devices', lambda r: web.json_response([{"code": k, "name": v["device_name"]} for k,v in device_registry.items()])),
-    web.static('/static', BASE_DIR) # Serve other files via /static prefix if needed
+    web.get('/api/devices', lambda r: web.json_response([
+        {"code": k, "name": v["device_name"], "status": v["status"]} for k,v in device_registry.items()
+    ])),
 ])
 
-# Also allow direct access to files for style.css/app.js
+# Serve static files for app.js and style.css
 async def static_file_handler(request):
     filename = request.match_info['filename']
     filepath = os.path.join(BASE_DIR, filename)
@@ -96,7 +99,4 @@ async def static_file_handler(request):
 app.router.add_get('/{filename:.+\\.(?:js|css|png|jpg|ico|svg)}', static_file_handler)
 
 if __name__ == "__main__":
-    print(f"--- ACCESS PRO STARTING ---")
-    print(f"Port: {PORT}")
-    print(f"Dir: {BASE_DIR}")
     web.run_app(app, host='0.0.0.0', port=PORT)
