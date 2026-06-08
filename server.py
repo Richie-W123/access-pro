@@ -7,7 +7,7 @@ import time
 import hashlib
 from aiohttp import web
 
-# --- Configuration ---
+# --- Environment Setup ---
 PORT = int(os.environ.get("PORT", 8080))
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -16,21 +16,13 @@ active_sessions = {}
 device_registry = {}
 ws_connections = {}
 
-def get_device_stats():
-    # Safe fallback for cloud environments
-    return {
-        "cpu": 0, "ram": 0, "battery": 100,
-        "platform": "Cloud",
-        "uptime": int(time.time())
-    }
-
 def generate_access_code():
     return str(uuid.uuid4().int)[:6].zfill(6)
 
 def generate_session_id():
     return hashlib.sha256(f"{time.time()}-{uuid.uuid4()}".encode()).hexdigest()[:16]
 
-# --- WebSocket Handler ---
+# --- WebSocket Logic ---
 async def websocket_handler(request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
@@ -44,11 +36,7 @@ async def websocket_handler(request):
                 if mtype == "register":
                     code = generate_access_code()
                     name = data.get("device_name", "Device")
-                    device_registry[code] = {
-                        "ws": ws,
-                        "device_name": name,
-                        "status": get_device_stats()
-                    }
+                    device_registry[code] = {"ws": ws, "device_name": name}
                     ws_connections[ws] = {"code": code}
                     await ws.send_json({"type": "registered", "access_code": code, "device_name": name})
 
@@ -61,7 +49,7 @@ async def websocket_handler(request):
                         await ws.send_json({"type": "connected", "session_id": sid, "host_name": host["device_name"]})
                         await host["ws"].send_json({"type": "incoming_connection", "session_id": sid, "client_name": data.get("device_name", "User")})
                     else:
-                        await ws.send_json({"type": "error", "message": "Invalid Code"})
+                        await ws.send_json({"type": "error", "message": "Code not found"})
 
                 elif mtype == "accept_connection":
                     sid = data.get("session_id")
@@ -77,23 +65,38 @@ async def websocket_handler(request):
                         await target.send_json(data)
             except: pass
 
+    # Cleanup
     if ws in ws_connections:
         code = ws_connections[ws].get("code")
         if code in device_registry: del device_registry[code]
         del ws_connections[ws]
     return ws
 
-# --- App Setup ---
-async def index_handler(request):
+# --- App Definition ---
+async def handle_index(request):
     return web.FileResponse(os.path.join(BASE_DIR, 'index.html'))
 
 app = web.Application()
-app.router.add_get('/', index_handler)
-app.router.add_get('/ws', websocket_handler)
-app.router.add_get('/api/status', lambda r: web.json_response({"status": "online"}))
-app.router.add_get('/api/devices', lambda r: web.json_response([{"code": k, "name": v["device_name"], "status": v["status"]} for k,v in device_registry.items()]))
-app.router.add_static('/', path=BASE_DIR, name='static')
+app.add_routes([
+    web.get('/', handle_index),
+    web.get('/ws', websocket_handler),
+    web.get('/api/status', lambda r: web.json_response({"status": "online"})),
+    web.get('/api/devices', lambda r: web.json_response([{"code": k, "name": v["device_name"]} for k,v in device_registry.items()])),
+    web.static('/static', BASE_DIR) # Serve other files via /static prefix if needed
+])
+
+# Also allow direct access to files for style.css/app.js
+async def static_file_handler(request):
+    filename = request.match_info['filename']
+    filepath = os.path.join(BASE_DIR, filename)
+    if os.path.exists(filepath) and os.path.isfile(filepath):
+        return web.FileResponse(filepath)
+    return web.HTTPNotFound()
+
+app.router.add_get('/{filename:.+\\.(?:js|css|png|jpg|ico|svg)}', static_file_handler)
 
 if __name__ == "__main__":
-    print(f"Starting server on 0.0.0.0:{PORT}")
+    print(f"--- ACCESS PRO STARTING ---")
+    print(f"Port: {PORT}")
+    print(f"Dir: {BASE_DIR}")
     web.run_app(app, host='0.0.0.0', port=PORT)
