@@ -2,10 +2,124 @@
 let ws = null;
 let peerConnection = null;
 let currentSessionId = null;
+let currentSessionToken = null;
 let localStream = null;
 let accessCode = null;
 let isHost = false;
 let isControlActive = false;
+let isCameraActive = false;
+
+// ─── Dashboard Logic ───
+async function loadDashboard() {
+    try {
+        const res = await fetch('/api/status'); // Check if server is up
+        const status = await res.json();
+
+        // Fetch devices
+        const devRes = await fetch('/api/devices');
+        const devices = await devRes.json();
+        const list = document.getElementById('dashboardList');
+        const dashboard = document.getElementById('deviceDashboard');
+
+        if (devices.length > 0) {
+            dashboard.style.display = 'block';
+            list.innerHTML = devices.map(d => `
+                <div class="dashboard-item glass-card" onclick="autoConnect('${d.code}')" style="cursor:pointer; margin-bottom: 10px; padding: 10px; border: 1px solid #444; border-radius: 8px;">
+                    <div class="device-info">
+                        <strong>${d.name}</strong><br>
+                        <small>${d.status.platform || 'System'} • ${d.status.battery}% Bat • CPU: ${d.status.cpu}%</small>
+                    </div>
+                </div>
+            `).join('');
+        }
+    } catch (e) { console.error("Dashboard error:", e); }
+}
+
+function autoConnect(code) {
+    showPanel('client');
+    const inputs = document.querySelectorAll('.code-input');
+    code.split('').forEach((char, i) => { if(inputs[i]) inputs[i].value = char; });
+}
+
+// ─── Camera Access ───
+async function toggleCamera() {
+    if (!isHost) {
+        showToast("Only the host can toggle their camera.", "info");
+        return;
+    }
+
+    try {
+        isCameraActive = !isCameraActive;
+        const constraints = isCameraActive
+            ? { video: true, audio: true }
+            : { video: { cursor: "always" }, audio: true };
+
+        const newStream = isCameraActive
+            ? await navigator.mediaDevices.getUserMedia(constraints)
+            : await navigator.mediaDevices.getDisplayMedia(constraints);
+
+        const videoTrack = newStream.getVideoTracks()[0];
+        const sender = peerConnection.getSenders().find(s => s.track.kind === 'video');
+        if (sender) sender.replaceTrack(videoTrack);
+
+        localStream.getTracks().forEach(t => t.stop());
+        localStream = newStream;
+
+        const video = document.getElementById('remoteVideo');
+        video.srcObject = localStream;
+
+        showToast(isCameraActive ? "Camera active" : "Screen sharing active", "success");
+    } catch (e) {
+        showToast("Media source switch failed: " + e.message, "error");
+        isCameraActive = !isCameraActive;
+    }
+}
+
+// ─── Clipboard Sync ───
+async function syncClipboard() {
+    try {
+        const text = await navigator.clipboard.readText();
+        if (controlChannel && controlChannel.readyState === 'open') {
+            controlChannel.send(JSON.stringify({ type: 'clipboard', text }));
+            showToast("Clipboard sent to remote device", "success");
+        }
+    } catch (e) {
+        showToast("Clipboard access denied.", "error");
+    }
+}
+
+// ─── File Management ───
+let currentPath = "";
+
+async function toggleFileTransfer() {
+    const sidebar = document.getElementById('fileSidebar');
+    sidebar.classList.toggle('active');
+    if (sidebar.classList.contains('active')) {
+        loadFiles("");
+    }
+}
+
+async function loadFiles(path) {
+    try {
+        const headers = {};
+        if (currentSessionToken) {
+            headers['Authorization'] = `Bearer ${currentSessionToken}`;
+        }
+        const res = await fetch(`/api/files?path=${encodeURIComponent(path)}`, { headers });
+        const data = await res.json();
+        currentPath = data.current;
+
+        const list = document.getElementById('fileList');
+        list.innerHTML = data.items.map(item => `
+            <div class="file-item" onclick="${item.is_dir ? `loadFiles('${item.path.replace(/\\/g, '/')}')` : `window.open('/api/download?path=${encodeURIComponent(item.path)}&token=${encodeURIComponent(currentSessionToken)}')`}" style="padding: 8px; cursor: pointer; border-bottom: 1px solid #333; display: flex; align-items: center; gap: 10px;">
+                <span>${item.is_dir ? '📁' : '📄'}</span>
+                <span>${item.name}</span>
+            </div>
+        `).join('');
+    } catch (e) {
+        showToast("Failed to load files", "error");
+    }
+}
 
 // WebRTC Configuration
 const rtcConfig = {
@@ -92,20 +206,8 @@ function displayAccessCode(code) {
 // ─── WebSocket Connection ───
 async function connectWebSocket(onReady) {
     try {
-        const res = await fetch('/api/ws-info');
-        const info = await res.json();
-        
-        let wsUrl = info.ws_url;
-        
-        // Handle GitHub Dev Tunnels
-        if (window.location.hostname.endsWith('.github.dev')) {
-            // Replace the 8080 port in the subdomain with 8765 for the websocket tunnel
-            const wsHostname = window.location.hostname.replace('-8080.app.github.dev', '-8765.app.github.dev')
-                                                       .replace('-8080.github.dev', '-8765.github.dev');
-            wsUrl = `wss://${wsHostname}`;
-        } else if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-            wsUrl = info.ws_local;
-        }
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws`;
 
         ws = new WebSocket(wsUrl);
 
@@ -226,6 +328,8 @@ async function handleSignalingMessage(data) {
             break;
 
         case "connection_accepted":
+            currentSessionId = data.session_id;
+            currentSessionToken = data.session_token;
             showToast(data.message, "success");
             startWebRTC();
             break;
@@ -347,13 +451,83 @@ async function handleIceCandidate(candidate) {
 // ─── Data Channel & Control ───
 let controlChannel = null;
 
+function ringDevice() {
+    if (controlChannel && controlChannel.readyState === 'open') {
+        controlChannel.send(JSON.stringify({ type: 'ring' }));
+        showToast("Ringing remote device...", "success");
+    }
+}
+
+function startVoiceCommand() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        showToast("Speech recognition not supported in this browser.", "error");
+        return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.onstart = () => showToast("Listening for commands...", "info");
+    recognition.onresult = (event) => {
+        const command = event.results[0][0].transcript.toLowerCase();
+        showToast(`Heard: "${command}"`, "success");
+        processVoiceCommand(command);
+    };
+    recognition.start();
+}
+
+function processVoiceCommand(command) {
+    if (command.includes("ring")) ringDevice();
+    else if (command.includes("camera")) toggleCamera();
+    else if (command.includes("chat")) toggleChat();
+    else if (command.includes("file")) toggleFileTransfer();
+    else if (command.includes("disconnect")) endSession();
+    else {
+        // Forward unknown commands to peer chat as a message
+        if (ws && currentSessionId) {
+            ws.send(JSON.stringify({
+                type: "chat",
+                session_id: currentSessionId,
+                sender: "AI Voice",
+                message: `Command: ${command}`
+            }));
+        }
+    }
+}
+
 function setupDataChannel(channel) {
     controlChannel = channel;
     controlChannel.onopen = () => console.log("Control channel opened");
     controlChannel.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        if (data.type === 'cursor') {
-            updateRemoteCursor(data.x, data.y);
+        if (isHost) {
+            // Forward commands to the python server via websocket
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                if (data.type === 'mouse_move') {
+                    ws.send(JSON.stringify({ type: 'local_control', action: 'mouse_move', x: data.x, y: data.y }));
+                } else if (data.type === 'mouse_click') {
+                    ws.send(JSON.stringify({ type: 'local_control', action: 'mouse_click', button: data.button || 'left' }));
+                } else if (data.type === 'key_down') {
+                    ws.send(JSON.stringify({ type: 'local_control', action: 'key_down', key: data.key }));
+                }
+            }
+            // Update local visual cursor on host if needed
+            if (data.type === 'cursor' || data.type === 'mouse_move') {
+                updateRemoteCursor(data.x, data.y);
+            }
+        } else {
+            // Client receives updates
+            if (data.type === 'cursor' || data.type === 'mouse_move') {
+                updateRemoteCursor(data.x, data.y);
+            } else if (data.type === 'clipboard') {
+                navigator.clipboard.writeText(data.text);
+                showToast("Remote clipboard synced!", "success");
+            } else if (data.type === 'ring') {
+                const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+                audio.play();
+                showToast("🚨 DEVICE RINGING! Someone is looking for this device.", "error");
+            } else if (data.type === 'key_down') {
+                console.log("Remote Key Pressed:", data.key);
+            }
         }
     };
 }
@@ -372,6 +546,8 @@ function toggleRemoteControl() {
 
 function setupRemoteControl() {
     const video = document.getElementById('remoteVideo');
+
+    // Mouse Move
     video.addEventListener('mousemove', (e) => {
         if (!isControlActive || !controlChannel || controlChannel.readyState !== 'open') return;
         
@@ -379,7 +555,78 @@ function setupRemoteControl() {
         const x = (e.clientX - rect.left) / rect.width;
         const y = (e.clientY - rect.top) / rect.height;
         
-        controlChannel.send(JSON.stringify({ type: 'cursor', x, y }));
+        controlChannel.send(JSON.stringify({ type: 'mouse_move', x, y }));
+    });
+
+    // Mouse Click (Left)
+    video.addEventListener('click', (e) => {
+        if (!isControlActive || !controlChannel || controlChannel.readyState !== 'open') return;
+        controlChannel.send(JSON.stringify({ type: 'mouse_click', button: 'left' }));
+    });
+
+    // Mouse Click (Right)
+    video.addEventListener('contextmenu', (e) => {
+        if (!isControlActive || !controlChannel || controlChannel.readyState !== 'open') return;
+        e.preventDefault();
+        controlChannel.send(JSON.stringify({ type: 'mouse_click', button: 'right' }));
+    });
+
+    // Touch Support (Mobile)
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchMoved = false;
+
+    video.addEventListener('touchstart', (e) => {
+        if (!isControlActive || !controlChannel || controlChannel.readyState !== 'open') return;
+        const touch = e.touches[0];
+        touchStartX = touch.clientX;
+        touchStartY = touch.clientY;
+        touchMoved = false;
+        sendTouchMove(touch);
+    }, { passive: true });
+
+    video.addEventListener('touchmove', (e) => {
+        if (!isControlActive || !controlChannel || controlChannel.readyState !== 'open') return;
+        const touch = e.touches[0];
+        const dx = touch.clientX - touchStartX;
+        const dy = touch.clientY - touchStartY;
+        if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+            touchMoved = true;
+        }
+        sendTouchMove(touch);
+    }, { passive: true });
+
+    video.addEventListener('touchend', (e) => {
+        if (!isControlActive || !controlChannel || controlChannel.readyState !== 'open') return;
+        if (!touchMoved) {
+            controlChannel.send(JSON.stringify({ type: 'mouse_click', button: 'left' }));
+        }
+    });
+
+    function sendTouchMove(touch) {
+        const rect = video.getBoundingClientRect();
+        const x = (touch.clientX - rect.left) / rect.width;
+        const y = (touch.clientY - rect.top) / rect.height;
+        const clampedX = Math.max(0, Math.min(1, x));
+        const clampedY = Math.max(0, Math.min(1, y));
+        controlChannel.send(JSON.stringify({ type: 'mouse_move', x: clampedX, y: clampedY }));
+    }
+
+    // Keyboard
+    window.addEventListener('keydown', (e) => {
+        if (!isControlActive || !controlChannel || controlChannel.readyState !== 'open') return;
+        if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+
+        controlChannel.send(JSON.stringify({
+            type: 'key_down',
+            key: e.key,
+            keyCode: e.keyCode
+        }));
+
+        // Prevent default browser actions for some keys
+        if (['Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+            e.preventDefault();
+        }
     });
 }
 
@@ -441,7 +688,10 @@ function copyAccessCode() {
 
 // ─── Initialize ───
 document.addEventListener('DOMContentLoaded', () => {
-    // Check initial status endpoint to test basic connectivity
+    loadDashboard();
+    // Refresh dashboard every 10s
+    setInterval(loadDashboard, 10000);
+
     fetch('/api/status')
         .then(res => res.json())
         .then(data => {

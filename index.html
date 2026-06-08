@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="RemoteLink Pro - Access and control any device remotely from anywhere in the world. Secure peer-to-peer screen sharing and remote control.">
-    <title>RemoteLink Pro — Remote Device Access</title>
+    <meta name="description" content="Access Pro - Access and control any device remotely from anywhere in the world. Secure peer-to-peer screen sharing and remote control.">
+    <title>Access Pro — Remote Device Access</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -26,7 +26,7 @@
                     <line x1="12" y1="17" x2="12" y2="21"/>
                 </svg>
             </div>
-            <span class="brand-name">RemoteLink <span class="brand-accent">Pro</span></span>
+            <span class="brand-name">Access <span class="brand-accent">Pro</span></span>
         </div>
         <div class="nav-status">
             <div class="status-dot" id="navStatusDot"></div>
@@ -48,9 +48,18 @@
                     Access Any Device<br>
                     <span class="gradient-text">From Anywhere</span>
                 </h1>
+
+                <!-- Dashboard / Recent Devices -->
+                <div id="deviceDashboard" class="device-dashboard" style="display:none;">
+                    <h4>Your Connected Devices</h4>
+                    <div id="dashboardList" class="dashboard-list">
+                        <!-- Dynamic items -->
+                    </div>
+                </div>
+
                 <p class="hero-subtitle">
                     Control, navigate, and manage any device remotely using your phone or computer. 
-                    Whether you're in Jinja helping someone in Gulu — RemoteLink Pro bridges the distance.
+                    Whether you're in Jinja helping someone in Gulu — Access Pro bridges the distance.
                 </p>
                 <div class="hero-actions">
                     <button class="btn btn-primary btn-glow" id="btnShareDevice" onclick="showPanel('host')">
@@ -308,6 +317,33 @@
                             <path d="M12 6v6l4 2"/>
                         </svg>
                         <span>Control</span>
+                    </button>
+                    <button class="toolbar-btn" id="btnCamera" onclick="toggleCamera()" title="Remote Camera">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                            <circle cx="12" cy="13" r="4"/>
+                        </svg>
+                        <span>Camera</span>
+                    </button>
+                    <button class="toolbar-btn" id="btnClipboard" onclick="syncClipboard()" title="Sync Clipboard">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+                            <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+                        </svg>
+                        <span>Sync Clip</span>
+                    </button>
+                    <button class="toolbar-btn" id="btnRing" onclick="ringDevice()" title="Ring Device">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                        </svg>
+                        <span>Ring</span>
+                    </button>
+                    <button class="toolbar-btn" id="btnVoice" onclick="startVoiceCommand()" title="AI Voice Commands">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+                        </svg>
+                        <span>Voice</span>
                     </button>
                     <button class="toolbar-btn" id="btnFullscreen" onclick="toggleFullscreen()" title="Fullscreen">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
