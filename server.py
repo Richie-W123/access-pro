@@ -45,15 +45,17 @@ ws_connections = {}    # ws -> { "access_code": str, "role": str }
 
 def get_device_stats():
     import platform
+    stats = {"cpu": 0, "ram": 0, "battery": 100, "platform": platform.system()}
     try:
         import psutil
-        cpu = psutil.cpu_percent()
-        ram = psutil.virtual_memory().percent
+        stats["cpu"] = psutil.cpu_percent()
+        stats["ram"] = psutil.virtual_memory().percent
         battery = psutil.sensors_battery()
-        battery_pct = battery.percent if battery else 100
-        return {"cpu": cpu, "ram": ram, "battery": battery_pct, "platform": platform.system()}
-    except:
-        return {"cpu": 0, "ram": 0, "battery": 100, "platform": platform.system()}
+        if battery:
+            stats["battery"] = battery.percent
+    except Exception as e:
+        print(f"Stats error (likely missing psutil): {e}")
+    return stats
 
 def generate_access_code():
     return str(uuid.uuid4().int)[:6].zfill(6)
