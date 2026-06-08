@@ -296,4 +296,4 @@ if __name__ == "__main__":
     else:
         print("Running on Render. Public tunnel startup skipped.")
 
-    web.run_app(app, port=PORT)
+    web.run_app(app, host='0.0.0.0', port=PORT)
