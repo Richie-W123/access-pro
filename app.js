@@ -39,6 +39,8 @@ function autoConnect(code) {
     showPanel('client');
     const inputs = document.querySelectorAll('.code-input');
     code.split('').forEach((char, i) => { if(inputs[i]) inputs[i].value = char; });
+    // Trigger connection automatically
+    setTimeout(connectToDevice, 500);
 }
 
 // ─── Camera Access ───
