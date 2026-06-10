@@ -168,6 +168,14 @@ async def websocket_handler(request):
                         logger.info(f"Session started: {sid}")
                         asyncio.create_task(send_alert_async(f"Session Started: `{sid[:8]}`", "info"))
 
+                elif mtype == "reject_connection":
+                    sid = data.get("session_id")
+                    if sid in active_sessions:
+                        msg = {"type": "connection_rejected", "message": "Connection rejected by host"}
+                        await active_sessions[sid]["client"].send_json(msg)
+                        del active_sessions[sid]
+                        logger.info(f"Session rejected: {sid}")
+
                 elif mtype == "local_control" and pyautogui:
                     try:
                         action = data.get("action")
@@ -262,6 +270,22 @@ async def api_files(request):
         logger.error(f"API Files error: {e}")
         return web.json_response({"error": str(e)}, status=500)
 
+async def api_download(request):
+    try:
+        auth = request.query.get("token")
+        if not any(s["token"] == auth for s in active_sessions.values()):
+            logger.warning(f"Unauthorized download attempt from {request.remote}")
+            return web.json_response({"error": "Unauthorized"}, status=401)
+
+        path = request.query.get("path")
+        if not path or not os.path.exists(path) or os.path.isdir(path):
+            return web.json_response({"error": "File not found"}, status=404)
+
+        return web.FileResponse(path)
+    except Exception as e:
+        logger.error(f"Download error: {e}")
+        return web.json_response({"error": str(e)}, status=500)
+
 async def index_handler(request):
     return web.FileResponse(os.path.join(BASE_DIR, 'index.html'))
 
@@ -274,6 +298,7 @@ def create_app():
         web.get('/api/status', api_status),
         web.get('/api/devices', api_devices),
         web.get('/api/files', api_files),
+        web.get('/api/download', api_download),
         web.static('/', BASE_DIR)
     ])
     return app

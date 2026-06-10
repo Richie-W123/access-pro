@@ -1,10 +1,13 @@
 // ─── Monitoring & Error Tracking ───
 if (typeof Sentry !== 'undefined') {
-    Sentry.init({
-        dsn: "https://...public@sentry.io/...", // Replace with real DSN or let it fail gracefully
-        integrations: [new Sentry.BrowserTracing()],
-        tracesSampleRate: 1.0,
-    });
+    const sentryDsn = ""; // User should insert real DSN here
+    if (sentryDsn) {
+        Sentry.init({
+            dsn: sentryDsn,
+            integrations: [new Sentry.BrowserTracing()],
+            tracesSampleRate: 1.0,
+        });
+    }
 }
 
 // ─── Global State ───
@@ -137,6 +140,8 @@ const rtcConfig = {
 };
 
 // ─── UI Management ───
+let serverConnected = false;
+
 function showPanel(panelName) {
     document.getElementById('heroSection').style.display = 'none';
     document.getElementById('hostPanel').style.display = 'none';
@@ -147,7 +152,8 @@ function showPanel(panelName) {
         document.getElementById('heroSection').style.display = 'grid';
         if (ws) { ws.close(); ws = null; }
         if (peerConnection) { peerConnection.close(); peerConnection = null; }
-        updateStatus("Disconnected", false);
+        // Only update status text, don't overwrite server connection status
+        document.getElementById('navStatusText').textContent = serverConnected ? "Server Online" : "Server Offline";
     } else if (panelName === 'host') {
         document.getElementById('hostPanel').style.display = 'block';
         document.getElementById('hostSetup').style.display = 'block';
@@ -178,6 +184,7 @@ function showToast(message, type = 'info') {
 }
 
 function updateStatus(text, isConnected) {
+    serverConnected = isConnected;
     document.getElementById('navStatusText').textContent = text;
     const dot = document.getElementById('navStatusDot');
     if (isConnected) dot.classList.add('connected');
@@ -207,6 +214,24 @@ function displayAccessCode(code) {
     const digits = document.querySelectorAll('.code-digit');
     for (let i = 0; i < code.length; i++) {
         if (digits[i]) digits[i].textContent = code[i];
+    }
+
+    // Show share button if API supported
+    if (navigator.share) {
+        document.getElementById('btnShareCode').style.display = 'inline-flex';
+    }
+}
+
+async function shareAccessCode() {
+    if (!accessCode) return;
+    try {
+        await navigator.share({
+            title: 'Access Pro - Remote Connection',
+            text: `Connect to my device on Access Pro using code: ${accessCode}`,
+            url: window.location.href
+        });
+    } catch (err) {
+        console.log("Share failed:", err);
     }
 }
 
@@ -251,26 +276,73 @@ async function connectWebSocket(onReady) {
 
 // ─── Host Functions ───
 async function startHosting() {
+    console.log("startHosting called");
     const deviceName = document.getElementById('hostDeviceName').value || "My Device";
-    isHost = true;
 
-    // Get screen stream before registering
-    try {
-        localStream = await navigator.mediaDevices.getDisplayMedia({
-            video: { cursor: "always" },
-            audio: true
-        });
-        
-        // Stop stream if user stops sharing via browser UI
-        localStream.getVideoTracks()[0].onended = () => {
-            showToast("Screen sharing stopped", "info");
-            showPanel('hero');
-        };
+    // ─── Permission & Compatibility Checks ───
+    const isSecureContext = window.isSecureContext || window.location.protocol === 'https:' || window.location.hostname === 'localhost';
 
-    } catch (e) {
-        showToast("Screen sharing permission denied.", "error");
+    if (!isSecureContext) {
+        showToast("Screen sharing requires a secure HTTPS connection. Please use the tunnel URL or localhost.", "error");
         return;
     }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        showToast("Your browser doesn't support the Screen Capture API. Try using Chrome or Edge.", "error");
+        return;
+    }
+
+    isHost = true;
+
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+    // Get screen stream with robust fallback
+    try {
+        if (isMobile) {
+            showToast("Mobile sharing: Ensure you grant 'Screen Recording' permission if prompted.", "info");
+        } else {
+            showToast("Please select the screen/window you wish to share.", "info");
+        }
+
+        // Attempt with audio
+        localStream = await navigator.mediaDevices.getDisplayMedia({
+            video: { cursor: "always" },
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true
+            }
+        });
+    } catch (e) {
+        if (e.name === 'NotAllowedError') {
+            showToast("Permission denied. You must allow screen access to host a session.", "error");
+            return;
+        }
+
+        console.warn("Audio capture may not be supported or was denied. Retrying video only...", e);
+        try {
+            // Fallback to video only if audio request fails (common on some systems)
+            localStream = await navigator.mediaDevices.getDisplayMedia({
+                video: { cursor: "always" },
+                audio: false
+            });
+        } catch (err) {
+            let errorMsg = "Screen sharing failed.";
+            if (err.name === 'NotAllowedError') errorMsg = "Permission denied.";
+            else if (err.name === 'NotFoundError') errorMsg = "No screen/window selected.";
+            else errorMsg = "Browser Error: " + err.message;
+
+            showToast(errorMsg, "error");
+            return;
+        }
+    }
+
+    if (!localStream) return;
+
+    // Stop stream if user stops sharing via browser UI
+    localStream.getVideoTracks()[0].onended = () => {
+        showToast("Screen sharing stopped", "info");
+        endSessionLocally();
+    };
 
     connectWebSocket(() => {
         ws.send(JSON.stringify({
@@ -472,7 +544,9 @@ async function startWebRTC() {
         
         document.getElementById('screenOverlay').style.display = 'none';
         const video = document.getElementById('remoteVideo');
+        video.muted = true; // Host mutes their own preview to avoid feedback
         video.srcObject = localStream;
+        video.play().catch(e => console.warn("Video play failed:", e));
 
     } else {
         // Client receives remote stream
@@ -759,17 +833,27 @@ function copyAccessCode() {
 }
 
 // ─── Initialize ───
+async function checkServerStatus() {
+    try {
+        const res = await fetch('/api/status');
+        if (res.ok) {
+            const data = await res.json();
+            updateStatus("Server Online", true);
+        } else {
+            updateStatus("Server Error", false);
+        }
+    } catch (err) {
+        updateStatus("Server Offline", false);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     loadDashboard();
-    // Refresh dashboard every 10s
-    setInterval(loadDashboard, 10000);
+    // Refresh dashboard and status every 10s
+    setInterval(() => {
+        loadDashboard();
+        checkServerStatus();
+    }, 10000);
 
-    fetch('/api/status')
-        .then(res => res.json())
-        .then(data => {
-            updateStatus("Server Online", true);
-        })
-        .catch(err => {
-            updateStatus("Server Offline", false);
-        });
+    checkServerStatus();
 });

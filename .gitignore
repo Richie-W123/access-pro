@@ -3,3 +3,7 @@ __pycache__/
 .env
 node_modules/
 .DS_Store
+*.txt
+!requirements.txt
+!runtime.txt
+!Procfile

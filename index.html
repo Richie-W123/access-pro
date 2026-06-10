@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <!-- Sentry Error Tracking -->
-    <script src="https://browser.sentry-cdn.com/7.100.0/bundle.min.js" integrity="sha384-..." crossorigin="anonymous"></script>
+    <script src="https://browser.sentry-cdn.com/7.100.0/bundle.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
     <!-- ═══ Animated Background ═══ -->
@@ -181,13 +181,23 @@
                         <span class="code-digit">-</span>
                         <span class="code-digit">-</span>
                     </div>
-                    <button class="btn btn-secondary btn-sm" onclick="copyAccessCode()">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                        </svg>
-                        Copy Code
-                    </button>
+                    <div class="code-actions" style="display: flex; gap: 0.5rem; justify-content: center;">
+                        <button class="btn btn-secondary btn-sm" onclick="copyAccessCode()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                            </svg>
+                            Copy Code
+                        </button>
+                        <button class="btn btn-secondary btn-sm" id="btnShareCode" onclick="shareAccessCode()" style="display: none;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                                <polyline points="16 6 12 2 8 6"/>
+                                <line x1="12" y1="2" x2="12" y2="15"/>
+                            </svg>
+                            Share
+                        </button>
+                    </div>
                     <div class="code-instructions">
                         <div class="instruction-step">
                             <div class="step-number">1</div>
@@ -385,7 +395,7 @@
 
             <!-- Remote Screen View -->
             <div class="remote-screen-container" id="remoteScreenContainer">
-                <video id="remoteVideo" autoplay playsinline></video>
+                <video id="remoteVideo" autoplay playsinline muted></video>
                 <div class="screen-overlay" id="screenOverlay">
                     <div class="overlay-content">
                         <div class="loading-spinner"></div>
