@@ -305,9 +305,64 @@ function connectToDevice() {
     });
 }
 
+// ─── Chat Logic ───
+function toggleChat() {
+    document.getElementById('chatSidebar').classList.toggle('active');
+}
+
+function sendChatMessage() {
+    const input = document.getElementById('chatInput');
+    const message = input.value.trim();
+    if (!message || !ws || !currentSessionId) return;
+
+    ws.send(JSON.stringify({
+        type: "chat",
+        session_id: currentSessionId,
+        sender: isHost ? "Host" : "Client",
+        message: message
+    }));
+
+    appendChatMessage("You", message);
+    input.value = "";
+}
+
+function appendChatMessage(sender, message) {
+    const container = document.getElementById('chatMessages');
+    const div = document.createElement('div');
+    div.className = `chat-msg ${sender === 'You' ? 'msg-own' : ''}`;
+    div.innerHTML = `<strong>${sender}:</strong> <span>${message}</span>`;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+}
+
+// ─── Fullscreen & Utility ───
+function toggleFullscreen() {
+    const container = document.getElementById('remoteScreenContainer');
+    if (!document.fullscreenElement) {
+        container.requestFullscreen().catch(err => {
+            showToast(`Error attempting to enable fullscreen: ${err.message}`, "error");
+        });
+    } else {
+        document.exitFullscreen();
+    }
+}
+
+function handleFileSelect(event) {
+    const files = event.target.files;
+    if (files.length > 0) {
+        showToast(`Selected ${files.length} files. Upload feature coming soon!`, "info");
+    }
+}
+
 // ─── Signaling Handlers ───
 async function handleSignalingMessage(data) {
     switch (data.type) {
+        case "chat":
+            appendChatMessage(data.sender, data.message);
+            if (!document.getElementById('chatSidebar').classList.contains('active')) {
+                showToast(`New message from ${data.sender}`, "info");
+            }
+            break;
         case "registered":
             accessCode = data.access_code;
             displayAccessCode(accessCode);

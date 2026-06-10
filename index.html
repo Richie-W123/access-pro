@@ -18,7 +18,7 @@
 
     <!-- ═══ Navigation Bar ═══ -->
     <nav class="navbar" id="navbar">
-        <div class="nav-brand">
+        <div class="nav-brand" onclick="showPanel('hero')" style="cursor:pointer;">
             <div class="brand-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
@@ -27,6 +27,9 @@
                 </svg>
             </div>
             <span class="brand-name">Access <span class="brand-accent">Pro</span></span>
+        </div>
+        <div class="nav-links">
+            <button class="btn-nav" onclick="showPanel('hero')">Dashboard</button>
         </div>
         <div class="nav-status">
             <div class="status-dot" id="navStatusDot"></div>
