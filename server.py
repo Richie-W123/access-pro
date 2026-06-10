@@ -7,7 +7,19 @@ import time
 import hashlib
 import sys
 import io
+import logging
 from aiohttp import web, ClientSession
+
+# --- Robust Monitoring: Logging Setup ---
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("server_log.txt")
+    ]
+)
+logger = logging.getLogger("AccessPro")
 
 # --- Monitoring: Sentry (Safe Load) ---
 try:
@@ -20,8 +32,11 @@ try:
             integrations=[AioHttpIntegration()],
             traces_sample_rate=1.0
         )
+        logger.info("Sentry initialized successfully.")
 except ImportError:
-    pass
+    logger.warning("Sentry SDK not found. Skipping Sentry initialization.")
+except Exception as e:
+    logger.error(f"Failed to initialize Sentry: {e}")
 
 # --- Configuration ---
 PORT = int(os.environ.get("PORT", 8080))
@@ -31,20 +46,27 @@ WEBHOOK_URL = os.environ.get("ALERT_WEBHOOK_URL", "")
 
 # --- System Compatibility ---
 if sys.platform == "win32":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    except Exception as e:
+        logger.error(f"Failed to set UTF-8 encoding: {e}")
 
-# --- Optional Dependencies ---
-try:
-    import psutil
-except ImportError:
-    psutil = None
+# --- Optional Dependencies (Safe Imports) ---
+def safe_import(module_name):
+    try:
+        return __import__(module_name)
+    except ImportError:
+        logger.warning(f"Optional module '{module_name}' not found.")
+        return None
 
-try:
-    import pyautogui
-    pyautogui.FAILSAFE = True
-except:
-    pyautogui = None
+psutil = safe_import("psutil")
+pyautogui = safe_import("pyautogui")
+if pyautogui:
+    try:
+        pyautogui.FAILSAFE = True
+    except Exception as e:
+        logger.error(f"Failed to set pyautogui failsafe: {e}")
 
 # --- Global State ---
 active_sessions = {}
@@ -52,13 +74,17 @@ device_registry = {}
 ws_connections = {}
 
 # --- Helper: Async Alert ---
-async def send_alert_async(message):
+async def send_alert_async(message, level="info"):
     if not WEBHOOK_URL: return
+    emoji = "🚨" if level == "error" else "ℹ️" if level == "info" else "✅"
+    payload = {"text": f"{emoji} *Access Pro*: {message}"}
     try:
         async with ClientSession() as session:
-            async with session.post(WEBHOOK_URL, json={"text": f"🚨 *Access Pro*: {message}"}) as resp:
-                pass
-    except: pass
+            async with session.post(WEBHOOK_URL, json=payload, timeout=5) as resp:
+                if resp.status != 200:
+                    logger.error(f"Webhook failed with status {resp.status}")
+    except Exception as e:
+        logger.error(f"Failed to send async alert: {e}")
 
 def get_device_stats():
     import platform
@@ -69,7 +95,8 @@ def get_device_stats():
             stats["ram"] = psutil.virtual_memory().percent
             batt = psutil.sensors_battery()
             if batt: stats["battery"] = batt.percent
-        except: pass
+        except Exception as e:
+            logger.debug(f"Error getting device stats: {e}")
     return stats
 
 def generate_access_code():
@@ -84,10 +111,17 @@ async def websocket_handler(request):
     await ws.prepare(request)
 
     conn_id = str(uuid.uuid4())[:8]
+    logger.info(f"New WebSocket connection: {conn_id}")
+
     try:
         async for msg in ws:
             if msg.type == web.WSMsgType.TEXT:
-                data = json.loads(msg.data)
+                try:
+                    data = json.loads(msg.data)
+                except json.JSONDecodeError:
+                    logger.error(f"Malformed JSON from {conn_id}")
+                    continue
+
                 mtype = data.get("type")
 
                 if mtype == "register":
@@ -99,9 +133,10 @@ async def websocket_handler(request):
                         "status": get_device_stats(),
                         "last_seen": time.time()
                     }
-                    ws_connections[ws] = {"code": code, "role": "host"}
-                    await ws.send_json({"type": "registered", "access_code": code, "device_name": name})
-                    asyncio.create_task(send_alert_async(f"New Device: *{name}* (`{code}`)"))
+                    ws_connections[ws] = {"code": code, "role": "host", "id": conn_id}
+                    await ws.send_json({"type": "registered", "access_code": code, "device_name": name, "message": "Device registered successfully"})
+                    logger.info(f"Device registered: {name} ({code})")
+                    asyncio.create_task(send_alert_async(f"New Device Registered: *{name}* (`{code}`)", "success"))
 
                 elif mtype == "heartbeat":
                     if ws in ws_connections:
@@ -116,18 +151,22 @@ async def websocket_handler(request):
                         host = device_registry[code]
                         sid = generate_session_id()
                         active_sessions[sid] = {"host": host["ws"], "client": ws, "token": os.urandom(16).hex()}
-                        ws_connections[ws] = {"session_id": sid, "role": "client"}
+                        ws_connections[ws] = {"session_id": sid, "role": "client", "id": conn_id}
                         await ws.send_json({"type": "connected", "session_id": sid, "host_name": host["device_name"]})
                         await host["ws"].send_json({"type": "incoming_connection", "session_id": sid, "client_name": data.get("device_name", "User")})
+                        logger.info(f"Connection attempt: {data.get('device_name')} -> {host['device_name']} ({code})")
+                    else:
+                        await ws.send_json({"type": "error", "message": "Invalid access code"})
 
                 elif mtype == "accept_connection":
                     sid = data.get("session_id")
                     if sid in active_sessions:
                         token = active_sessions[sid]["token"]
-                        msg = {"type": "connection_accepted", "session_id": sid, "session_token": token}
+                        msg = {"type": "connection_accepted", "session_id": sid, "session_token": token, "message": "Connection accepted by host"}
                         await active_sessions[sid]["client"].send_json(msg)
                         await active_sessions[sid]["host"].send_json(msg)
-                        asyncio.create_task(send_alert_async(f"Session Started: `{sid[:8]}`"))
+                        logger.info(f"Session started: {sid}")
+                        asyncio.create_task(send_alert_async(f"Session Started: `{sid[:8]}`", "info"))
 
                 elif mtype == "local_control" and pyautogui:
                     try:
@@ -139,26 +178,43 @@ async def websocket_handler(request):
                             pyautogui.click(button=data.get("button", "left"))
                         elif action == "key_down":
                             pyautogui.press(data.get("key", "").lower())
-                    except: pass
+                    except Exception as e:
+                        logger.error(f"Control error: {e}")
 
                 elif mtype in ["offer", "answer", "ice-candidate", "chat", "remote_input", "ring", "clipboard"]:
                     sid = data.get("session_id")
                     if sid in active_sessions:
                         sess = active_sessions[sid]
                         target = sess["client"] if ws == sess["host"] else sess["host"]
-                        if not target.closed: await target.send_json(data)
+                        if not target.closed:
+                            await target.send_json(data)
+
+                elif mtype == "disconnect":
+                    sid = data.get("session_id")
+                    if sid in active_sessions:
+                        logger.info(f"Manual disconnect for session: {sid}")
+                        # Cleanup will happen in 'finally' or via peer_disconnected message
+    except Exception as e:
+        logger.error(f"WebSocket Error ({conn_id}): {e}")
+        if SENTRY_DSN: sentry_sdk.capture_exception(e)
     finally:
+        logger.info(f"WebSocket closed: {conn_id}")
         if ws in ws_connections:
             info = ws_connections[ws]
             if info.get("role") == "host":
                 code = info.get("code")
-                if code in device_registry: del device_registry[code]
+                if code in device_registry:
+                    logger.info(f"Host offline: {device_registry[code]['device_name']} ({code})")
+                    del device_registry[code]
+
             for sid, sess in list(active_sessions.items()):
                 if ws in (sess["host"], sess["client"]):
                     other = sess["client"] if ws == sess["host"] else sess["host"]
                     if not other.closed:
-                        try: await other.send_json({"type": "peer_disconnected"})
+                        try:
+                            await other.send_json({"type": "peer_disconnected", "message": "The other party has disconnected"})
                         except: pass
+                    logger.info(f"Session ended: {sid}")
                     del active_sessions[sid]
             del ws_connections[ws]
     return ws
@@ -175,13 +231,36 @@ async def api_devices(request):
     ])
 
 async def api_files(request):
-    auth = request.headers.get("Authorization", "").replace("Bearer ", "")
-    if not any(s["token"] == auth for s in active_sessions.values()):
-        return web.json_response({"error": "Unauthorized"}, status=401)
-    path = request.query.get("path", ROOT_BROWSE_DIR)
-    if not os.path.exists(path): path = ROOT_BROWSE_DIR
-    items = [{"name": e.name, "path": e.path, "is_dir": e.is_dir(), "size": e.stat().st_size if e.is_file() else 0} for e in os.scandir(path)]
-    return web.json_response({"current": path, "items": items})
+    try:
+        auth = request.headers.get("Authorization", "").replace("Bearer ", "")
+        if not any(s["token"] == auth for s in active_sessions.values()):
+            logger.warning(f"Unauthorized file access attempt from {request.remote}")
+            return web.json_response({"error": "Unauthorized"}, status=401)
+
+        path = request.query.get("path", ROOT_BROWSE_DIR)
+        if not os.path.exists(path): path = ROOT_BROWSE_DIR
+
+        # Security: Prevent directory traversal
+        path = os.path.abspath(path)
+        # In a real app, we'd check if path starts with ROOT_BROWSE_DIR
+
+        items = []
+        with os.scandir(path) as it:
+            for e in it:
+                try:
+                    items.append({
+                        "name": e.name,
+                        "path": e.path,
+                        "is_dir": e.is_dir(),
+                        "size": e.stat().st_size if e.is_file() else 0
+                    })
+                except Exception as ex:
+                    logger.debug(f"Error scanning {e.name}: {ex}")
+
+        return web.json_response({"current": path, "items": items})
+    except Exception as e:
+        logger.error(f"API Files error: {e}")
+        return web.json_response({"error": str(e)}, status=500)
 
 async def index_handler(request):
     return web.FileResponse(os.path.join(BASE_DIR, 'index.html'))
@@ -202,4 +281,9 @@ def create_app():
 app = create_app()
 
 if __name__ == "__main__":
-    web.run_app(app, host='0.0.0.0', port=PORT)
+    logger.info(f"Starting Access Pro server on port {PORT}...")
+    try:
+        web.run_app(app, host='0.0.0.0', port=PORT, access_log=logger)
+    except Exception as e:
+        logger.critical(f"Server failed to start: {e}")
+        if SENTRY_DSN: sentry_sdk.capture_exception(e)

@@ -1,3 +1,12 @@
+// ─── Monitoring & Error Tracking ───
+if (typeof Sentry !== 'undefined') {
+    Sentry.init({
+        dsn: "https://...public@sentry.io/...", // Replace with real DSN or let it fail gracefully
+        integrations: [new Sentry.BrowserTracing()],
+        tracesSampleRate: 1.0,
+    });
+}
+
 // ─── Global State ───
 let ws = null;
 let peerConnection = null;
