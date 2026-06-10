@@ -12,10 +12,6 @@ let isCameraActive = false;
 // ─── Dashboard Logic ───
 async function loadDashboard() {
     try {
-        const res = await fetch('/api/status'); // Check if server is up
-        const status = await res.json();
-
-        // Fetch devices
         const devRes = await fetch('/api/devices');
         const devices = await devRes.json();
         const list = document.getElementById('dashboardList');
@@ -24,9 +20,9 @@ async function loadDashboard() {
         if (devices.length > 0) {
             dashboard.style.display = 'block';
             list.innerHTML = devices.map(d => `
-                <div class="dashboard-item glass-card" onclick="autoConnect('${d.code}')" style="cursor:pointer; margin-bottom: 10px; padding: 10px; border: 1px solid #444; border-radius: 8px;">
+                <div class="dashboard-item glass-card ${d.is_online ? 'online' : 'offline'}" onclick="autoConnect('${d.code}')" style="cursor:pointer; margin-bottom: 10px; padding: 10px; border: 1px solid ${d.is_online ? '#10b981' : '#444'}; border-radius: 8px;">
                     <div class="device-info">
-                        <strong>${d.name}</strong><br>
+                        <strong>${d.name} ${d.is_online ? '●' : '○'}</strong><br>
                         <small>${d.status.platform || 'System'} • ${d.status.battery}% Bat • CPU: ${d.status.cpu}%</small>
                     </div>
                 </div>
@@ -206,6 +202,8 @@ function displayAccessCode(code) {
 }
 
 // ─── WebSocket Connection ───
+let heartbeatInterval = null;
+
 async function connectWebSocket(onReady) {
     try {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -215,6 +213,13 @@ async function connectWebSocket(onReady) {
 
         ws.onopen = () => {
             updateStatus("Server Connected", true);
+            if (isHost) {
+                heartbeatInterval = setInterval(() => {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: "heartbeat" }));
+                    }
+                }, 10000); // Send heartbeat every 10s
+            }
             if (onReady) onReady();
         };
 
@@ -225,6 +230,7 @@ async function connectWebSocket(onReady) {
 
         ws.onclose = () => {
             updateStatus("Server Disconnected", false);
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
             showToast("Connection to server lost.", "error");
         };
 

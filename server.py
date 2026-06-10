@@ -7,14 +7,36 @@ import time
 import hashlib
 import sys
 import io
+import requests
 from aiohttp import web
+
+# --- Monitoring: Sentry Integration ---
+import sentry_sdk
+from sentry_sdk.integrations.aiohttp import AioHttpIntegration
+
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[AioHttpIntegration()],
+        traces_sample_rate=1.0
+    )
+
+# --- Monitoring: Webhooks (Slack/Discord) ---
+WEBHOOK_URL = os.environ.get("ALERT_WEBHOOK_URL", "")
+
+def send_alert(message):
+    if not WEBHOOK_URL: return
+    try:
+        requests.post(WEBHOOK_URL, json={"text": f"🚨 *Access Pro Alert*: {message}"})
+    except: pass
 
 # --- System Compatibility ---
 if sys.platform == "win32":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
-# --- Optional Dependencies (Safe Imports) ---
+# --- Optional Dependencies ---
 try:
     import psutil
     HAS_PSUTIL = True
@@ -31,7 +53,6 @@ except:
 # --- Configuration ---
 PORT = int(os.environ.get("PORT", 8080))
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# Security: Limit file browsing to the project folder on the cloud
 ROOT_BROWSE_DIR = os.path.abspath(os.path.expanduser("~") if not os.environ.get("RENDER") else BASE_DIR)
 
 # --- Global State ---
@@ -72,16 +93,30 @@ async def websocket_handler(request):
                 if mtype == "register":
                     code = generate_access_code()
                     name = data.get("device_name", "Unknown Device")
-                    device_registry[code] = {"ws": ws, "device_name": name, "status": get_device_stats()}
+                    device_registry[code] = {
+                        "ws": ws,
+                        "device_name": name,
+                        "status": get_device_stats(),
+                        "last_seen": time.time()
+                    }
                     ws_connections[ws] = {"code": code, "role": "host"}
                     await ws.send_json({"type": "registered", "access_code": code, "device_name": name})
+                    send_alert(f"New Device Registered: *{name}* (`{code}`)")
+
+                elif mtype == "heartbeat":
+                    if ws in ws_connections:
+                        code = ws_connections[ws].get("code")
+                        if code in device_registry:
+                            device_registry[code]["last_seen"] = time.time()
+                            # Update stats too
+                            device_registry[code]["status"] = get_device_stats()
 
                 elif mtype == "connect":
                     code = data.get("access_code")
                     if code in device_registry:
                         host = device_registry[code]
                         sid = generate_session_id()
-                        active_sessions[sid] = {"host": host["ws"], "client": ws, "token": os.urandom(16).hex()}
+                        active_sessions[sid] = {"host": host["ws"], "client": ws, "token": os.urandom(16).hex(), "start_time": time.time()}
                         ws_connections[ws] = {"session_id": sid, "role": "client"}
                         await ws.send_json({"type": "connected", "session_id": sid, "host_name": host["device_name"]})
                         await host["ws"].send_json({"type": "incoming_connection", "session_id": sid, "client_name": data.get("device_name", "Remote User")})
@@ -93,9 +128,9 @@ async def websocket_handler(request):
                         msg = {"type": "connection_accepted", "session_id": sid, "session_token": token}
                         await active_sessions[sid]["client"].send_json(msg)
                         await active_sessions[sid]["host"].send_json(msg)
+                        send_alert(f"Remote Session Started: `{sid[:8]}`")
 
                 elif mtype == "local_control" and HAS_PYAUTOGUI:
-                    # This executes on the HOST machine running the python server
                     action = data.get("action")
                     try:
                         if action == "mouse_move":
@@ -131,10 +166,25 @@ async def websocket_handler(request):
 
 # --- API Routes ---
 async def api_status(request):
-    return web.json_response({"status": "online", "devices": len(device_registry)})
+    return web.json_response({
+        "status": "online",
+        "devices": len(device_registry),
+        "uptime": time.time(),
+        "monitoring": "active"
+    })
 
 async def api_devices(request):
-    return web.json_response([{"code": k, "name": v["device_name"], "status": v["status"]} for k, v in device_registry.items()])
+    now = time.time()
+    devs = []
+    for k, v in device_registry.items():
+        is_online = (now - v["last_seen"]) < 30 # Heartbeat every 10s, timeout after 30s
+        devs.append({
+            "code": k,
+            "name": v["device_name"],
+            "status": v["status"],
+            "is_online": is_online
+        })
+    return web.json_response(devs)
 
 async def api_files(request):
     auth = request.headers.get("Authorization", "").replace("Bearer ", "")
