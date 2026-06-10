@@ -3,7 +3,7 @@ services:
     name: access-pro
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python server.py
+    startCommand: gunicorn server:app --bind 0.0.0.0:$PORT --worker-class aiohttp.GunicornWebWorker
     envVars:
       - key: PORT
         value: "8080"
