@@ -260,7 +260,8 @@ def create_app():
     ])
     return app
 
+app = create_app()
+
 if __name__ == "__main__":
     print(f"Starting Access Pro on 0.0.0.0:{PORT}")
-    app = create_app()
     web.run_app(app, host='0.0.0.0', port=PORT)
